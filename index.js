@@ -20,27 +20,40 @@ addEventListener("keyup", (ev) => {
   if (ev.code === "Space") key.space = false;
 });
 
+const getDistance = (x1, y1, x2, y2) => {
+  return Math.sqrt(Math.pow(x2 - x1, 2) + Math.pow(y2 - y1, 2));
+};
+
+const randomizer = (max, isInt, min) => {
+  const random = min ? Math.random() * (max - min) + min : Math.random() * max;
+  return isInt ? Math.floor(random) : random;
+};
+
+const randomPosNeg = (num) => {
+  return Math.random() > 0.5 ? num : -num;
+};
+
 // * Classes
-// Ship
 class Ship {
   constructor(x, y) {
     this.x = x;
     this.y = y;
-    this.width = canvas.width / 50;
-    this.height = canvas.height / 100;
+    this.width = 30;
+    this.height = 20;
     this.deg = 0;
-    this.currentDeg = 0;
-    this.inertiaDeg = 0;
-    this.speed = 0;
-    this.currentSpeed = 0;
-    this.inertiaSpeed = 0;
-    this.drifting = false;
+    this.rotationSpeed = 4;
+    this.friction = 0.0001;
+    this.initialThrust = 0.1;
+    this.thrust = {
+      x: 0,
+      y: 0,
+    };
   }
 
-  setSpeedAngle(speed, deg, sin) {
+  setSpeedAngle(thrust, deg, sin) {
     return sin
-      ? speed * Math.sin((deg * Math.PI) / 180)
-      : speed * Math.cos((deg * Math.PI) / 180);
+      ? thrust * Math.sin((deg * Math.PI) / 180)
+      : thrust * Math.cos((deg * Math.PI) / 180);
   }
 
   draw() {
@@ -57,30 +70,19 @@ class Ship {
   }
 
   update() {
-    // Key bindings
+    // Ship Movement
     if (key.up) {
-      if (this.inertiaSpeed > 0) {
-        this.inertiaSpeed -= 0.05;
-        this.currentSpeed = this.inertiaSpeed;
-        this.x += this.setSpeedAngle(this.inertiaSpeed, this.currentDeg);
-        this.y += this.setSpeedAngle(this.inertiaSpeed, this.currentDeg, true);
-      } else {
-        if (this.speed < 10) this.speed += 0.05;
-        this.x += this.setSpeedAngle(this.speed, this.deg);
-        this.y += this.setSpeedAngle(this.speed, this.deg, true);
-        this.currentDeg = this.deg;
-        this.currentSpeed = this.speed;
-      }
+      this.thrust.x += this.setSpeedAngle(this.initialThrust, this.deg);
+      this.thrust.y += this.setSpeedAngle(this.initialThrust, this.deg, true);
     } else {
-      if (this.currentSpeed > 0) {
-        this.speed = 0;
-        this.x += this.setSpeedAngle(this.currentSpeed, this.currentDeg);
-        this.y += this.setSpeedAngle(this.currentSpeed, this.currentDeg, true);
-        this.inertiaSpeed = this.currentSpeed;
-      }
+      this.thrust.x -= this.friction * this.thrust.x;
+      this.thrust.y -= this.friction * this.thrust.y;
     }
-    if (key.left) this.deg -= 2;
-    if (key.right) this.deg += 2;
+    if (key.left) this.deg -= this.rotationSpeed;
+    if (key.right) this.deg += this.rotationSpeed;
+
+    this.x += this.thrust.x;
+    this.y += this.thrust.y;
 
     // Boundary handling
     if (this.x < 0) this.x = canvas.width;
@@ -92,10 +94,12 @@ class Ship {
 }
 
 class Asteroid {
-  constructor(x, y) {
+  constructor(x, y, r, xSpeed, ySpeed) {
     this.x = x;
     this.y = y;
-    this.r = 30;
+    this.r = r;
+    this.xSpeed = xSpeed;
+    this.ySpeed = ySpeed;
   }
 
   draw() {
@@ -106,13 +110,30 @@ class Asteroid {
   }
 
   update() {
+    // Asteroid Movement
+    this.x += this.xSpeed;
+    this.y += this.ySpeed;
+
+    // Ship go boom
+    if (
+      getDistance(this.x, this.y, ship.x, ship.y) <
+      this.r / 2 + ship.width / 2
+    ) {
+      startGame();
+    }
+
+    // Boundary handling
+    if (this.x < 0) this.x = canvas.width;
+    if (this.x > canvas.width) this.x = 0;
+    if (this.y < 0) this.y = canvas.height;
+    if (this.y > canvas.height) this.y = 0;
     this.draw();
   }
 }
 
 // * Animation loop and init
-const ship = new Ship(canvas.width / 2, canvas.height / 2);
-const asteroids = [];
+let ship;
+let asteroids = [];
 const animate = () => {
   if (canvas.width !== innerWidth || canvas.height !== innerHeight) {
     canvas.width = innerWidth;
@@ -128,10 +149,22 @@ const animate = () => {
   });
 };
 
-const init = () => {
-  for (let i = 0; i < 1; i++) {
-    asteroids.push(new Asteroid(500, 500));
+const startGame = () => {
+  ship = new Ship(canvas.width / 2, canvas.height / 2);
+  asteroids = [];
+  const asteroidNum = 5;
+  for (let i = 0; i < asteroidNum; i++) {
+    const r = randomizer(50, true, 10);
+    const x = randomizer(canvas.width - r, true, 0 + r);
+    const y = randomizer(canvas.height - r, true, 0 + r);
+    const xSpeed = randomPosNeg(randomizer(3));
+    const ySpeed = randomPosNeg(randomizer(3));
+    asteroids.push(new Asteroid(x, y, r, xSpeed, ySpeed));
   }
+};
+
+const init = () => {
+  startGame();
   animate();
 };
 

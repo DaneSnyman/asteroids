@@ -113,12 +113,11 @@ class Asteroid {
     // Asteroid Movement
     this.x += this.xSpeed;
     this.y += this.ySpeed;
-
+    console.log("lol");
     // Ship go boom
-    if (
-      getDistance(this.x, this.y, ship.x, ship.y) <
-      this.r / 2 + ship.width / 2
-    ) {
+    console.log(ship.x);
+
+    if (getDistance(this.x, this.y, ship.x, ship.y) > this.r * 3) {
       startGame();
     }
 

@@ -7,11 +7,24 @@ canvas.height = innerHeight;
 // Key presses
 const key = {};
 let deg = 0;
+let bullets = [];
+const bulletSpeed = 15;
 addEventListener("keydown", (ev) => {
   if (ev.code === "ArrowUp") key.up = true;
   if (ev.code === "ArrowLeft") key.left = true;
   if (ev.code === "ArrowRight") key.right = true;
-  if (ev.code === "Space") key.space = true;
+  if (ev.code === "Space") {
+    key.space = true;
+    bullets.push(
+      new Bullet(
+        ship.x + ship.width / 2 + ship.thrust.x,
+        ship.y + ship.height / 2 + ship.thrust.y,
+        bulletSpeed,
+        ship.deg,
+        bullets.length
+      )
+    );
+  }
 });
 addEventListener("keyup", (ev) => {
   if (ev.code === "ArrowUp") key.up = false;
@@ -21,7 +34,9 @@ addEventListener("keyup", (ev) => {
 });
 
 const getDistance = (x1, y1, x2, y2) => {
-  return Math.sqrt(Math.pow(x2 - x1, 2) + Math.pow(y2 - y1, 2));
+  const a = x1 - x2;
+  const b = y1 - y2;
+  return Math.sqrt(a ** 2 + b ** 2);
 };
 
 const randomizer = (max, isInt, min) => {
@@ -31,6 +46,12 @@ const randomizer = (max, isInt, min) => {
 
 const randomPosNeg = (num) => {
   return Math.random() > 0.5 ? num : -num;
+};
+
+const setSpeedAngle = (thrust, deg, sin) => {
+  return sin
+    ? thrust * Math.sin((deg * Math.PI) / 180)
+    : thrust * Math.cos((deg * Math.PI) / 180);
 };
 
 // * Classes
@@ -50,12 +71,6 @@ class Ship {
     };
   }
 
-  setSpeedAngle(thrust, deg, sin) {
-    return sin
-      ? thrust * Math.sin((deg * Math.PI) / 180)
-      : thrust * Math.cos((deg * Math.PI) / 180);
-  }
-
   draw() {
     ctx.save();
     ctx.beginPath();
@@ -72,8 +87,8 @@ class Ship {
   update() {
     // Ship Movement
     if (key.up) {
-      this.thrust.x += this.setSpeedAngle(this.initialThrust, this.deg);
-      this.thrust.y += this.setSpeedAngle(this.initialThrust, this.deg, true);
+      this.thrust.x += setSpeedAngle(this.initialThrust, this.deg);
+      this.thrust.y += setSpeedAngle(this.initialThrust, this.deg, true);
     } else {
       this.thrust.x -= this.friction * this.thrust.x;
       this.thrust.y -= this.friction * this.thrust.y;
@@ -93,13 +108,52 @@ class Ship {
   }
 }
 
+class Bullet {
+  constructor(x, y, speed, deg, i) {
+    this.x = x;
+    this.y = y;
+    this.speed = speed;
+    this.r = 2;
+    this.deg = deg;
+    this.i = i;
+  }
+
+  draw() {
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, this.r, 0, Math.PI * 2);
+    ctx.fillStyle = "white";
+    ctx.fill();
+  }
+
+  update() {
+    // Kill bullet
+    if (
+      this.x > canvas.width ||
+      this.x < 0 ||
+      this.y > canvas.height ||
+      this.y < 0
+    ) {
+      bullets[this.i] = undefined;
+    }
+
+    this.x += setSpeedAngle(this.speed, this.deg);
+    this.y += setSpeedAngle(this.speed, this.deg, true);
+    this.draw();
+  }
+}
+
 class Asteroid {
-  constructor(x, y, r, xSpeed, ySpeed) {
+  constructor(x, y, r, xSpeed, ySpeed, i) {
     this.x = x;
     this.y = y;
     this.r = r;
     this.xSpeed = xSpeed;
     this.ySpeed = ySpeed;
+    this.i = i;
+    this.ship = {
+      x: ship.x,
+      y: ship.y,
+    };
   }
 
   draw() {
@@ -113,13 +167,25 @@ class Asteroid {
     // Asteroid Movement
     this.x += this.xSpeed;
     this.y += this.ySpeed;
-    console.log("lol");
-    // Ship go boom
-    console.log(ship.x);
 
-    if (getDistance(this.x, this.y, ship.x, ship.y) > this.r * 3) {
+    // Ship go boom
+    this.ship.x = ship.x;
+    this.ship.y = ship.y;
+    const distance = getDistance(this.x, this.y, this.ship.x, this.ship.y);
+    if (distance < this.r) {
       startGame();
     }
+
+    // Self go boom
+    bullets.forEach((bullet) => {
+      if (bullet) {
+        const bulletDistance = getDistance(this.x, this.y, bullet.x, bullet.y);
+        if (bulletDistance < this.r) {
+          asteroids[this.i] = undefined;
+          bullets[bullet.i] = undefined;
+        }
+      }
+    });
 
     // Boundary handling
     if (this.x < 0) this.x = canvas.width;
@@ -144,7 +210,11 @@ const animate = () => {
   ship.update();
 
   asteroids.forEach((asteroid) => {
-    asteroid.update();
+    if (asteroid) asteroid.update();
+  });
+
+  bullets.forEach((bullet) => {
+    if (bullet) bullet.update();
   });
 };
 
@@ -153,12 +223,12 @@ const startGame = () => {
   asteroids = [];
   const asteroidNum = 5;
   for (let i = 0; i < asteroidNum; i++) {
-    const r = randomizer(50, true, 10);
+    const r = randomizer(50, true, 30);
     const x = randomizer(canvas.width - r, true, 0 + r);
     const y = randomizer(canvas.height - r, true, 0 + r);
-    const xSpeed = randomPosNeg(randomizer(3));
-    const ySpeed = randomPosNeg(randomizer(3));
-    asteroids.push(new Asteroid(x, y, r, xSpeed, ySpeed));
+    const xSpeed = randomPosNeg(randomizer(1));
+    const ySpeed = randomPosNeg(randomizer(1));
+    asteroids.push(new Asteroid(x, y, r, xSpeed, ySpeed, i));
   }
 };
 
